@@ -10,7 +10,7 @@ is_trino_started := $(shell curl --fail --silent --insecure http://localhost:808
 
 clone_metabase_if_missing:
 ifeq ($(wildcard $(makefile_dir)/metabase/.),)
-	@echo "Did not find metabase repo, cloning version $(metabase_version)..."; git clone -b version0.43.4 --single-branch https://github.com/curefit/metabase.git
+	@echo "Did not find metabase repo, cloning version $(metabase_version)..."; git clone -b $(makefile_dir) --single-branch https://github.com/curefit/metabase.git
 else
 	@echo "Found metabase repo, skipping initialization."
 endif
@@ -73,6 +73,10 @@ update_deps_files:
 			echo "Updating metabase driver deps file..."; \
 			cd $(makefile_dir)/metabase/modules/drivers/; sed -i.bak "s/\}\}\}/\} \metabase\/starburst \{:local\/root \"starburst\"\}\}\}/g" deps.edn; \
 	fi
+
+test: start_trino_if_missing link_to_driver update_deps_files
+	@echo "Testing Starburst driver..."
+	cd $(makefile_dir)/metabase/; DRIVERS=starburst clojure -X:dev:drivers:drivers-dev:test
 
 build: clone_metabase_if_missing update_deps_files link_to_driver front_end driver
 
