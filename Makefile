@@ -10,7 +10,7 @@ is_trino_started := $(shell curl --fail --silent --insecure http://localhost:808
 
 clone_metabase_if_missing:
 ifeq ($(wildcard $(makefile_dir)/metabase/.),)
-	@echo "Did not find metabase repo, cloning version $(metabase_version)..."; git clone -b $(metabase_version) --single-branch https://github.com/metabase/metabase.git
+	@echo "Did not find metabase repo, cloning version $(metabase_version)..."; git clone -b version0.43.4 --single-branch https://github.com/curefit/metabase.git
 else
 	@echo "Found metabase repo, skipping initialization."
 endif
