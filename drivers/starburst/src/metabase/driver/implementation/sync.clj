@@ -136,11 +136,12 @@
        :name   table-name
        :fields (into
                 #{}
-                (map-indexed (fn [idx {:keys [column type] :as col}]
+                (map-indexed (fn [idx {:keys [column type extra] :as col}]
                                {:name column
                                 :database-type type
                                 :base-type         (starburst-type->base-type type)
-                                :database-position idx}))
+                                :database-position idx
+                                :field-comment extra}))
                 (jdbc/reducible-query {:connection conn} sql))})))
 
 (defmethod sql-jdbc.sync/db-default-timezone :starburst
