@@ -82,4 +82,3 @@ build: clone_metabase_if_missing update_deps_files link_to_driver front_end driv
 
 docker-image:
 	cd $(makefile_dir)/metabase/; export MB_EDITION=ee && ./bin/build && mv target/uberjar/metabase.jar bin/docker/ && docker build -t metabase-dev --build-arg MB_EDITION=ee ./bin/docker/
-Footer
