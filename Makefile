@@ -74,10 +74,6 @@ update_deps_files:
 			cd $(makefile_dir)/metabase/modules/drivers/; sed -i.bak "s/\}\}\}/\} \metabase\/starburst \{:local\/root \"starburst\"\}\}\}/g" deps.edn; \
 	fi
 
-test: start_trino_if_missing link_to_driver update_deps_files
-	@echo "Testing Starburst driver..."
-	cd $(makefile_dir)/metabase/; DRIVERS=starburst clojure -X:dev:drivers:drivers-dev:test
-
 build: clone_metabase_if_missing update_deps_files link_to_driver front_end driver
 
 docker-image:
