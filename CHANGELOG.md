@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [v0.43.4] - 2022-08-16
+
 ## [1.0.6-RC-1] - 2022-08-11
 
 -   Bump Metabase version to v1.44.0
@@ -34,7 +36,9 @@
 -   Adds Starburst specific tests
 -   Adds github CI actions for testing and release
 
-[Unreleased]: https://github.com/starburstdata/metabase-driver/compare/1.0.6-RC-1...HEAD
+[Unreleased]: https://github.com/curefit/metabase-driver/compare/v0.43.4...HEAD
+
+[v0.43.4]: https://github.com/curefit/metabase-driver/compare/1.0.6-RC-1...v0.43.4
 
 [1.0.6-RC-1]: https://github.com/starburstdata/metabase-driver/compare/1.0.5...1.0.6-RC-1
 
