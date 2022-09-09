@@ -33,7 +33,7 @@ This command starts a local Metabase server on port `3000`. If you want to build
 ### Testing Driver
 Once you have built all required resources with the `make build` command, run `make test`. This command builds your local driver changes and then starts Starburst driver tests.
 
-#### Executing Sepecific Tests
+#### Executing Specific Tests
 You can cd into the metabase repo and run commands like:
 `DRIVERS=starburst clojure -X:dev:drivers:drivers-dev:test :only metabase.query-processor-test.timezones-test/filter-test`
 
@@ -61,6 +61,11 @@ If needed, `make checkout_latest_metabase_tag` will update Metabase to its lates
 * [Driver Development Announcements](https://www.metabase.com/docs/latest/developers-guide-drivers.html#driver-development-announcements)
 * [Driver Development Form](https://discourse.metabase.com/c/driver-development)
 * [Metabase](https://www.metabase.com/)
+* [Learn Clojure](https://clojure.org/guides/learn/clojure)
+* [Clojure Docs](https://clojuredocs.org/clojure.core)
+* [Clojure Cheatsheet](https://clojure.org/api/cheatsheet)
+* [Clojure JDBC](https://clojure-doc.org/articles/ecosystem/java_jdbc/using_sql/)
+* [Clojure](https://clojure.org/index)
 
 ## Contact
 For feature requests and bugs, please create an issue in this repo. For further support, see the following resources:
