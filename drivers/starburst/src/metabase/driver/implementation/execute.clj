@@ -142,7 +142,7 @@
 ;;; +----------------------------------------------------------------------------------------------------------------+
 
 (defmethod sql-jdbc.execute/prepared-statement :starburst
-  [driver ^Connection conn ^String sql params]
+  [driver ^Connection conn ^String sql params remark]
   ;; with Starburst driver, result set holdability must be HOLD_CURSORS_OVER_COMMIT
   ;; defining this method simply to omit setting the holdability
   (let [stmt (.prepareStatement conn
@@ -154,6 +154,7 @@
         (.setFetchDirection stmt ResultSet/FETCH_FORWARD)
         (catch Throwable e
           (log/debug e (trs "Error setting prepared statement fetch direction to FETCH_FORWARD"))))
+      (.setClientInfo conn (doto (java.util.Properties.) (.putAll {"ClientTags" remark})))
       (sql-jdbc.execute/set-parameters! driver stmt params)
       stmt
       (catch Throwable e
