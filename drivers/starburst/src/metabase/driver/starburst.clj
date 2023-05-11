@@ -20,7 +20,7 @@
 
 (driver/register! :starburst, :parent #{::sql-jdbc.legacy/use-legacy-classes-for-read-and-set})
  
-(defmethod driver/supports? [:starburst :set-timezone] [:sql-jdbc :set-timezone])
+(prefer-method driver/supports? [:starburst :set-timezone] [:sql-jdbc :set-timezone])
 
 (defmethod driver/database-supports? [:starburst :persist-models] [_driver _feat _db] true)
 
