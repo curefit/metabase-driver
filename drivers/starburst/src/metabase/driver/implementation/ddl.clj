@@ -8,8 +8,7 @@
       [metabase.driver.sql.ddl :as sql.ddl]
       [metabase.public-settings :as public-settings]
       [metabase.query-processor :as qp]
-      [metabase.util.i18n :refer [trs]]
-      [metabase.util.log :as log])
+      [metabase.util.i18n :refer [trs]])
     (:import com.mchange.v2.c3p0.C3P0ProxyConnection
       io.trino.jdbc.TrinoConnection
       [java.sql ResultSet Time Types Connection PreparedStatement ResultSetMetaData]
@@ -58,7 +57,7 @@
                                     (try
                                       (sql.ddl/execute! conn [(sql.ddl/drop-table-sql database (:table_name persisted-info))])
                                       (catch Exception e
-                                        (log/warn e)
+                                        (trs e)
                                         (throw e)))))
 
 (defmethod ddl.i/check-can-persist :starburst
@@ -106,12 +105,11 @@
                                            (set-statement-timeout! tx)
                                            (loop [[[step stepfn] & remaining] steps]
                                                  (let [result (try (stepfn tx)
-                                                                   (log/info (trs "Step {0} was successful for db {1}"
-                                                                                  step (:name database)))
+                                                                   (trs "Step {0} was successful for db {1}"
+                                                                        step (:name database))
                                                                    ::valid
                                                                    (catch Exception e
-                                                                     (log/warn (trs "Error in `{0}` while checking for model persistence permissions." step))
-                                                                     (log/warn e)
+                                                                     (trs "Error in `{0}` while checking for model persistence permissions." step)
                                                                      step))]
                                                       (cond (and (= result ::valid) remaining)
                                                             (recur remaining)

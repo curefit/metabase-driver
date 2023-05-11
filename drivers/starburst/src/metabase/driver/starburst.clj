@@ -22,12 +22,6 @@
  
 (prefer-method driver/supports? [:starburst :set-timezone] [:sql-jdbc :set-timezone])
 
-(defmethod driver/database-supports? [:starburst :persist-models] [_driver _feat _db] true)
-
-(defmethod driver/database-supports? [:starburst :persist-models-enabled]
-           [_driver _feat db]
-           (-> db :options :persist-models-enabled))
-
 ;;; +----------------------------------------------------------------------------------------------------------------+
 ;;; |                                                  Load implemetation files                                      |
 ;;; +----------------------------------------------------------------------------------------------------------------+

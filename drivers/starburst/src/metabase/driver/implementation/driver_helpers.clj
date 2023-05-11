@@ -26,6 +26,12 @@
   ;; We have this return nil to avoid running unnecessary queries during fks sync.
   nil)
 
+(defmethod driver/database-supports? [:starburst :persist-models] [_driver _feat _db] true)
+
+(defmethod driver/database-supports? [:starburst :persist-models-enabled]
+           [_driver _feat db]
+           (-> db :options :persist-models-enabled))
+
 (doseq [[feature supported?] {:set-timezone                    true
                               :basic-aggregations              true
                               :standard-deviation-aggregations true
