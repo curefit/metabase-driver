@@ -14,17 +14,17 @@
 (ns metabase.driver.starburst
   "Starburst driver."
   (:require [metabase.driver :as driver]
-                        [metabase.driver.sql-jdbc.execute.legacy-impl :as sql-jdbc.legacy]))
+            [metabase.driver.sql-jdbc.execute.legacy-impl :as sql-jdbc.legacy]))
 
 (set! *warn-on-reflection* true)
 
 (driver/register! :starburst, :parent #{::sql-jdbc.legacy/use-legacy-classes-for-read-and-set})
  
-(prefer-method driver/supports? [:starburst :set-timezone] [:sql-jdbc :set-timezone])
+(defmethod driver/supports? [:starburst :set-timezone] [:sql-jdbc :set-timezone])
 
-(prefer-method driver/database-supports? [:starburst :persist-models] true)
+(defmethod driver/database-supports? [:starburst :persist-models] [_driver _feat _db] true)
 
-(prefer-method driver/database-supports? [:starburst :persist-models-enabled]
+(defmethod driver/database-supports? [:starburst :persist-models-enabled]
            [_driver _feat db]
            (-> db :options :persist-models-enabled))
 
