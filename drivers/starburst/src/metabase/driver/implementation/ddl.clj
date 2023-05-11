@@ -57,7 +57,6 @@
                                     (try
                                       (sql.ddl/execute! conn [(sql.ddl/drop-table-sql database (:table_name persisted-info))])
                                       (catch Exception e
-                                        (trs e)
                                         (throw e)))))
 
 (defmethod ddl.i/check-can-persist :starburst
