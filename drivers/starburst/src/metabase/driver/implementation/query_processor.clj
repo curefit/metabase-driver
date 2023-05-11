@@ -17,10 +17,14 @@
             [honeysql.helpers :as hh]
             [java-time :as t]
             [metabase.driver.sql.query-processor :as sql.qp]
+            [metabase.driver.sql.util :as sql.u]
+            [metabase.driver.sql-jdbc.sync :as sql-jdbc.sync]
+            [metabase.query-processor.error-type :as qp.error-type]
             [metabase.query-processor.timezone :as qp.timezone]
             [metabase.util :as u]
             [metabase.util.date-2 :as u.date]
-            [metabase.util.honeysql-extensions :as hx])
+            [metabase.util.honeysql-extensions :as hx]
+            [metabase.util.i18n :refer [tru]])
     (:import [java.time OffsetDateTime ZonedDateTime]))
 
 (def ^:private ^:const timestamp-with-time-zone-db-type "timestamp with time zone")
@@ -94,7 +98,7 @@
         db-type     (hx/type-info->db-type type-info)]
     (if (and ;; AT TIME ZONE is only valid on these Trino types; if applied to something else (ex: `date`), then
              ;; an error will be thrown by the query analyzer
-         (contains? #{"timestamp" "timestamp with time zone" "time" "time with time zone"} db-type)
+         (and db-type (re-find #"(?i)^time(?:stamp)?(?:\(\d+\))?(?: with time zone)?$" db-type))
              ;; if one has already been set, don't do so again
          (not (::in-report-zone? (meta expr)))
          report-zone)
@@ -107,6 +111,10 @@
 (defmethod sql.qp/date [:starburst :default]
   [_ _ expr]
   expr)
+
+(defmethod sql.qp/date [:starburst :second-of-minute]
+  [_ _ expr]
+  (hsql/call :second (in-report-zone expr)))
 
 (defmethod sql.qp/date [:starburst :minute]
   [_ _ expr]
@@ -144,6 +152,10 @@
   [_ _ expr]
   (sql.qp/adjust-start-of-week :starburst (partial hsql/call :date_trunc (hx/literal :week)) (in-report-zone expr)))
 
+(defmethod sql.qp/date [:starburst :week-of-year-iso]
+  [_ _ expr]
+  (hsql/call :week (in-report-zone expr)))
+
 (defmethod sql.qp/date [:starburst :month]
   [_ _ expr]
   (hsql/call :date_trunc (hx/literal :month) (in-report-zone expr)))
@@ -163,6 +175,10 @@
 (defmethod sql.qp/date [:starburst :year]
   [_ _ expr]
   (hsql/call :date_trunc (hx/literal :year) (in-report-zone expr)))
+
+(defmethod sql.qp/date [:starburst :year-of-era]
+  [_ _ expr]
+  (hsql/call :year (in-report-zone expr)))
 
 (defmethod sql.qp/current-datetime-honeysql-form :starburst
   [_]
@@ -221,3 +237,48 @@
   [_ _ expr]
   (let [report-zone (qp.timezone/report-timezone-id-if-supported :starburst)]
     (hsql/call :from_unixtime expr (hx/literal (or report-zone "UTC")))))
+
+(defn- safe-datetime [x]
+  (cond
+    (nil? x) x
+    (= (type x) java.time.LocalDate) (hx/->timestamp x)
+    (= (keyword (hx/type-info->db-type (hx/type-info x))) :date) (hx/->timestamp x)
+    :else x))
+
+(defmethod sql.qp/->honeysql [:starburst :datetime-diff]
+  [driver [_ x y unit]]
+  (let [x (sql.qp/->honeysql driver x)
+        y (sql.qp/->honeysql driver y)
+        disallowed-types (keep
+                          (fn [v]
+                            (when-let [db-type (keyword (hx/type-info->db-type (hx/type-info v)))]
+                              (let [base-type (sql-jdbc.sync/database-type->base-type driver db-type)]
+                                (when-not (some #(isa? base-type %) [:type/Date :type/DateTime])
+                                  (name db-type)))))
+                          [x y])]
+    (when (seq disallowed-types)
+      (throw (ex-info (tru "Only datetime, timestamp, or date types allowed. Found {0}"
+                           (pr-str disallowed-types))
+                      {:found disallowed-types
+                       :type  qp.error-type/invalid-query})))
+    (case unit
+      (:year :quarter :month :week :day)
+      (let [x-date (hsql/call :date (->AtTimeZone (safe-datetime x) (qp.timezone/results-timezone-id)))
+            y-date (hsql/call :date (->AtTimeZone (safe-datetime y) (qp.timezone/results-timezone-id)))]
+        (hsql/call :date_diff (hx/literal unit) x-date y-date))
+
+      (:hour :minute :second)
+      (hsql/call :date_diff (hx/literal unit) x y))))
+
+(defmethod sql.qp/->honeysql [:starburst :convert-timezone]
+  [driver [_ arg target-timezone source-timezone]]
+  (let [expr         (sql.qp/->honeysql driver (cond-> arg
+                                                 (string? arg) u.date/parse))
+        with_timezone? (hx/is-of-type? expr #"(?i)^timestamp(?:\(\d+\))? with time zone$")
+        _ (sql.u/validate-convert-timezone-args with_timezone? target-timezone source-timezone)
+        expr (hsql/call :at_timezone
+                        (if with_timezone?
+                          expr
+                          (hsql/call :with_timezone expr (or source-timezone (qp.timezone/results-timezone-id))))
+                        target-timezone)]
+    (hx/with-database-type-info (hx/->timestamp expr) "timestamp")))

@@ -33,5 +33,7 @@
                               :native-parameters               true
                               :expression-aggregations         true
                               :binning                         true
-                              :foreign-keys                    true}]
+                              :foreign-keys                    true
+                              :datetime-diff                   true
+                              :convert-timezone                true}]
   (defmethod driver/supports? [:starburst feature] [_ _] supported?))
