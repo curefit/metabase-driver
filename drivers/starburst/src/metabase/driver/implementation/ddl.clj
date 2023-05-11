@@ -1,7 +1,7 @@
 (ns metabase.driver.implementation.ddl
     (:require
       [clojure.java.jdbc :as jdbc]
-      [honey.sql :as sql]
+      [honeysql.core :as sql]
       [java-time :as t]
       [metabase.driver.ddl.interface :as ddl.i]
       [metabase.driver.sql-jdbc.connection :as sql-jdbc.conn]
