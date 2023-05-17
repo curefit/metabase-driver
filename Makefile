@@ -73,7 +73,7 @@ update_deps_files:
 #	@echo "Testing Starburst driver..."
 #	cd /Users/abhishek.gedela/metabase/; DRIVERS=starburst clojure -X:dev:drivers:drivers-dev:test
 
-build: update_deps_files link_to_driver front_end driver
+build: update_deps_files link_to_driver driver
 
 docker-image:
 	cd $(makefile_dir)/metabase/; export MB_EDITION=ee && ./bin/build && mv target/uberjar/metabase.jar bin/docker/ && docker build -t metabase-dev --build-arg MB_EDITION=ee ./bin/docker/

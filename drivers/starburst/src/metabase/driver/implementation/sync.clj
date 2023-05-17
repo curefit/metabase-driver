@@ -75,6 +75,12 @@
   [driver catalog schema table]
   (str "DESCRIBE " (sql.u/quote-name driver :table catalog schema table)))
 
+(defn show-create-table-sql
+      "The DESCRIBE  statement that will list information about the given `table`, in the given `catalog` and schema`."
+      {:added "0.39.0"}
+      [driver catalog schema table]
+      (str "SHOW CREATE TABLE " (sql.u/quote-name driver :table catalog schema table)))
+
 (def excluded-schemas
   "The set of schemas that should be excluded when querying all schemas."
   #{"information_schema"})
@@ -123,6 +129,13 @@
                      (describe-schema driver conn catalog schema))))
             (jdbc/reducible-result-set rs {})))))
 
+(defn extract-partitioned-by [result-set]
+      (let [map (first result-set)]
+           (when map
+                 (when (re-find #"partitioned_by\s+=\s+ARRAY\[(.+?)]" ((keyword "create table") map))
+                       (let [partitions (re-find #"partitioned_by\s+=\s+ARRAY\[(.+?)]" ((keyword "create table") map))]
+                            (clojure.string/split (second partitions) #","))))))
+
 (defmethod driver/describe-database :starburst
   [driver {{:keys [catalog schema] :as details} :details :as database}]
   (with-open [conn (-> (sql-jdbc.conn/db->pooled-connection-spec database)
@@ -137,17 +150,27 @@
                        jdbc/get-connection)
               stmt (.createStatement conn)]
     (let [sql (describe-table-sql driver catalog schema table-name)
-          rs (sql-jdbc.execute/execute-statement! driver stmt sql)]
+          rs (sql-jdbc.execute/execute-statement! driver stmt sql)
+          show-create-table-sql (show-create-table-sql driver catalog schema table-name)
+          partitioned_by (extract-partitioned-by (jdbc/result-set-seq (sql-jdbc.execute/execute-statement! driver stmt show-create-table-sql)))]
       {:schema schema
        :name   table-name
        :fields (into
                 #{}
                 (map-indexed (fn [idx {:keys [column type extra] :as col}]
-                               {:name column
-                                :database-type type
-                                :base-type         (starburst-type->base-type type)
-                                :database-position idx
-                                :field-comment extra}))
+                                 (if (some #(= (str "'" column "'") %) partitioned_by)
+                                   {:name column
+                                    :database-type type
+                                    :base-type         (starburst-type->base-type type)
+                                    :database-position idx
+                                    :field-comment "partition key"
+                                    }
+                                   {:name column
+                                    :database-type type
+                                    :base-type         (starburst-type->base-type type)
+                                    :database-position idx
+                                    })
+                               ))
                 (jdbc/reducible-query {:connection conn} sql))})))
 
 (defmethod driver/db-default-timezone :starburst
