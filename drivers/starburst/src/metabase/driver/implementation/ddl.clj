@@ -36,6 +36,8 @@
            (let [{:keys [query params]} (qp/compile dataset-query)]
                 (jdbc/with-db-connection [conn (sql-jdbc.conn/db->pooled-connection-spec database)]
                                          (println "===============starting refresh===============")
+                                         (println "Setting client tags for conn (jdbc/get-connection conn)")
+                                         (.setClientInfo (jdbc/get-connection conn) (doto (java.util.Properties.) (.putAll {"ClientTags" (str "-1, -999, analytics@curefit.com, not_available, non-priority, scheduled, default-hash")})))
                                          (.setAutoCommit (jdbc/get-connection conn) true)
                                          (jdbc/with-db-transaction [tx conn]
                                                                    (.setAutoCommit (jdbc/get-connection conn) true)

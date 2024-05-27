@@ -17,10 +17,10 @@ is_trino_started := $(shell curl --fail --silent --insecure http://localhost:$(t
 #endif
 
 checkout_latest_metabase_tag: clone_metabase_if_missing clean
-	cd /Users/abhishek.gedela/metabase;
+	cd ../metabase;
 	$(eval latest_metabase_version='curefit-v0.46.2')
 	@echo "Checking out latest metabase tag: $(latest_metabase_version)"
-	cd /Users/abhishek.gedela/metabase/modules/drivers && git checkout $(latest_metabase_version);
+	cd ../metabase/modules/drivers && git checkout $(latest_metabase_version);
 	sed -i.bak 's/metabase\": \".*\"/metabase\": \"$(latest_metabase_version)\"/g' app_versions.json; rm  ./app_versions.json.bak
 
 start_trino_if_missing:
@@ -32,8 +32,8 @@ else
 endif
 
 link_to_driver:
-ifeq ($(wildcard /Users/abhishek.gedela/metabase/modules/drivers/starburst/src),)
-	@echo "Adding link to driver..."; ln -s /Users/abhishek.gedela/partition-key-changes/metabase-driver/drivers/starburst /Users/abhishek.gedela/metabase/modules/drivers
+ifeq ($(wildcard ../metabase/modules/drivers/starburst/src),)
+	@echo "Adding link to driver..."; ln -s ./metabase-driver/drivers/starburst ../metabase/modules/drivers
 else
 	@echo "Driver found, skipping linking."
 endif
@@ -41,37 +41,37 @@ endif
 
 front_end:
 	@echo "Building Front End..."
-	cd /Users/abhishek.gedela/metabase/; yarn build && yarn build-static-viz
+	cd ../metabase/; yarn build && yarn build-static-viz
 
 driver: update_deps_files
 	@echo "Building Starburst driver..."
-	cd /Users/abhishek.gedela/metabase/; ./bin/build-driver.sh starburst
+	cd ../metabase/; ./bin/build-driver.sh starburst
 
 server:
 	@echo "Starting metabase..."
-	cd /Users/abhishek.gedela/metabase/; clojure -M:run
+	cd ../metabase/; clojure -M:run
 
 # This command adds the require starburst driver dependencies to the metabase repo.
 update_deps_files:
-	@if cd /Users/abhishek.gedela/metabase/ && grep -q starburst deps.edn; \
+	@if cd ../metabase/ && grep -q starburst deps.edn; \
 		then \
 			echo "Metabase deps file updated, skipping..."; \
 		else \
 			echo "Updating metabase deps file..."; \
-			cd /Users/abhishek.gedela/metabase/; sed -i.bak 's/\/test\"\]\}/\/test\" \"modules\/drivers\/starburst\/test\"\]\}/g' deps.edn; \
+			cd ../metabase/; sed -i.bak 's/\/test\"\]\}/\/test\" \"modules\/drivers\/starburst\/test\"\]\}/g' deps.edn; \
 	fi
 
-	@if cd /Users/abhishek.gedela/metabase/modules/drivers && grep -q starburst deps.edn; \
+	@if cd ../metabase/modules/drivers && grep -q starburst deps.edn; \
 		then \
 			echo "Metabase driver deps file updated, skipping..."; \
 		else \
 			echo "Updating metabase driver deps file..."; \
-			cd /Users/abhishek.gedela/metabase/modules/drivers/; sed -i.bak "s/\}\}\}/\} \metabase\/starburst \{:local\/root \"starburst\"\}\}\}/g" deps.edn; \
+			cd ../metabase/modules/drivers/; sed -i.bak "s/\}\}\}/\} \metabase\/starburst \{:local\/root \"starburst\"\}\}\}/g" deps.edn; \
 	fi
 
 #test: start_trino_if_missing link_to_driver update_deps_files
 #	@echo "Testing Starburst driver..."
-#	cd /Users/abhishek.gedela/metabase/; DRIVERS=starburst clojure -X:dev:drivers:drivers-dev:test
+#	cd ../metabase/; DRIVERS=starburst clojure -X:dev:drivers:drivers-dev:test
 
 build: update_deps_files link_to_driver driver
 
