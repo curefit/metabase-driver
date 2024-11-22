@@ -39,13 +39,13 @@
                                          (println "Setting client tags for conn (jdbc/get-connection conn)")
                                          (.setClientInfo (jdbc/get-connection conn) (doto (java.util.Properties.) (.putAll {"ClientTags" (str "-1, -999, analytics@curefit.com, not_available, non-priority, scheduled, default-hash")})))
                                          (.setAutoCommit (jdbc/get-connection conn) true)
+;;                                          (jdbc/with-db-transaction [tx conn]
+;;                                                                    (.setAutoCommit (jdbc/get-connection conn) true)
+;;                                                                    (sql.ddl/execute! tx [(sql.ddl/drop-table-sql database (:table-name definition))])
+;;                                                                    (.setAutoCommit (jdbc/get-connection conn) false))
                                          (jdbc/with-db-transaction [tx conn]
                                                                    (.setAutoCommit (jdbc/get-connection conn) true)
-                                                                   (sql.ddl/execute! tx [(sql.ddl/drop-table-sql database (:table-name definition))])
-                                                                   (.setAutoCommit (jdbc/get-connection conn) false))
-                                         (jdbc/with-db-transaction [tx conn]
-                                                                   (.setAutoCommit (jdbc/get-connection conn) true)
-                                                                   (sql.ddl/execute! tx (into [(sql.ddl/create-table-sql database definition query)] params))
+                                                                   (sql.ddl/execute! tx (into [(sql.ddl/create-or-replace-table-sql database definition query)] params))
                                                                    (.setAutoCommit (jdbc/get-connection conn) false))
                                          {:state :success})))
 
