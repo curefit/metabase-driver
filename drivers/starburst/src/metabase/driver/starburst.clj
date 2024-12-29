@@ -71,3 +71,4 @@
 (load "implementation/connectivity")
 (load "implementation/unprepare")
 (load "implementation/driver_helpers")
+(load "implementation/ddl")

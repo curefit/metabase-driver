@@ -52,7 +52,7 @@
                                         (throw e)))))
 
 (defmethod ddl.i/check-can-persist :starburst
-           [database]
+           [{driver :engine, :as database}]
            (let [schema-name (ddl.i/schema-name database (public-settings/site-uuid))
                  table-name  (format "persistence_check_%s" (rand-int 10000))
                  steps       [[:persist.check/create-schema
