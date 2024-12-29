@@ -44,6 +44,7 @@ clean:
 link_to_driver:
 ifeq ($(wildcard $(local_metabase_dir)/modules/drivers/starburst/src),)
 	@echo $(local_metabase_dir)/modules/drivers/starburst/src
+	@echo $(local_starburst_dir)/metabase-driver/drivers/starburst
 	@echo "Adding link to driver..."; ln -s $(local_starburst_dir)/metabase-driver/drivers/starburst $(local_metabase_dir)/modules/drivers
 else
 	@echo "Driver found, skipping linking."
