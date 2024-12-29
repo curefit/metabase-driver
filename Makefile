@@ -7,6 +7,9 @@ trino_version := $(shell jq '.trino' app_versions.json)
 metabase_version := $(shell jq '.metabase' app_versions.json)
 
 makefile_dir := $(dir $(realpath $(lastword $(MAKEFILE_LIST))))
+local_metabase_dir := $(MB_LOCAL_METABASE_DIR)
+local_starburst_dir := $(MB_LOCAL_STARBURST_DIR)
+
 trino_port := 8082
 is_trino_started := $(shell curl --fail --silent --insecure http://localhost:$(trino_port)/v1/info | jq '.starting')
 
@@ -39,12 +42,13 @@ clean:
 	cd $(makefile_dir)/metabase/modules/drivers && git fetch --all --tags && git checkout $(metabase_version);
 
 link_to_driver:
-ifeq ($(wildcard $(makefile_dir)/metabase/modules/drivers/starburst/src),)
-	@echo "Adding link to driver..."; ln -s ../../../drivers/starburst $(makefile_dir)/metabase/modules/drivers
+ifeq ($(wildcard $(local_metabase_dir)/modules/drivers/starburst/src),)
+	@echo $(local_metabase_dir)/modules/drivers/starburst/src
+	@echo "Adding link to driver..."; ln -s $(local_starburst_dir)/metabase-driver/drivers/starburst $(local_metabase_dir)/modules/drivers
 else
 	@echo "Driver found, skipping linking."
 endif
-	
+
 
 front_end:
 	@echo "Building Front End..."
@@ -52,28 +56,28 @@ front_end:
 
 driver: update_deps_files
 	@echo "Building Starburst driver..."
-	cd $(makefile_dir)/metabase/; ./bin/build-driver.sh starburst
+	cd $(local_metabase_dir); ./bin/build-driver.sh starburst
 
-server: 
+server:
 	@echo "Starting metabase..."
 	cd $(makefile_dir)/metabase/; clojure -M:run
 
 # This command adds the require starburst driver dependencies to the metabase repo.
 update_deps_files:
-	@if cd $(makefile_dir)/metabase && grep -q starburst deps.edn; \
+	@if cd $(local_metabase_dir) && grep -q starburst deps.edn; \
 		then \
 			echo "Metabase deps file updated, skipping..."; \
 		else \
 			echo "Updating metabase deps file..."; \
-			cd $(makefile_dir)/metabase/; sed -i.bak 's/\/test\"\]\}/\/test\" \"modules\/drivers\/starburst\/test\"\]\}/g' deps.edn; \
+			cd $(local_metabase_dir); sed -i.bak 's/\/test\"\]\}/\/test\" \"modules\/drivers\/starburst\/test\"\]\}/g' deps.edn; \
 	fi
 
-	@if cd $(makefile_dir)/metabase/modules/drivers && grep -q starburst deps.edn; \
+	@if cd $(local_metabase_dir)/modules/drivers && grep -q starburst deps.edn; \
 		then \
 			echo "Metabase driver deps file updated, skipping..."; \
 		else \
 			echo "Updating metabase driver deps file..."; \
-			cd $(makefile_dir)/metabase/modules/drivers/; sed -i.bak "s/\}\}\}/\} \metabase\/starburst \{:local\/root \"starburst\"\}\}\}/g" deps.edn; \
+			cd $(local_metabase_dir)/modules/drivers/; sed -i.bak "s/\}\}\}/\} \metabase\/starburst \{:local\/root \"starburst\"\}\}\}/g" deps.edn; \
 	fi
 
 test: start_trino_if_missing link_to_driver update_deps_files
@@ -84,7 +88,7 @@ testOptimized: start_trino_if_missing link_to_driver update_deps_files
 	@echo "Testing Starburst driver (explicitPrepare=true)..."
 	cd $(makefile_dir)/metabase/; DRIVERS=starburst MB_STARBURST_TEST_PORT=$(trino_port) clojure -J-DexplicitPrepare=false -X:dev:drivers:drivers-dev:test
 
-build: clone_metabase_if_missing update_deps_files link_to_driver front_end driver
+build: link_to_driver driver
 
 docker-image:
 	cd $(makefile_dir)/metabase/; export MB_EDITION=ee && ./bin/build.sh && mv target/uberjar/metabase.jar bin/docker/ && docker build -t metabase-dev --build-arg MB_EDITION=ee ./bin/docker/

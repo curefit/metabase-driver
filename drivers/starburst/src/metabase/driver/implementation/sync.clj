@@ -87,6 +87,12 @@
     (log/debugf "database-type->base-type %s -> %s" field-type base-type)
     base-type))
 
+(defn show-create-table-sql
+  "The DESCRIBE  statement that will list information about the given `table`, in the given `catalog` and schema`."
+  {:added "0.39.0"}
+  [driver catalog schema table]
+  (str "SHOW CREATE TABLE " (sql.u/quote-name driver :table catalog schema table)))
+
 (defmethod sql-jdbc.sync.interface/have-select-privilege? :starburst
   [driver ^Connection conn table-schema table-name]
   (try
