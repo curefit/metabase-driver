@@ -51,6 +51,10 @@
                                       (catch Exception e
                                         (throw e)))))
 
+(defmethod ddl.i/schema-name-to-persist :default
+           []
+           "dwh_metabase_starburst")
+
 (defmethod ddl.i/check-can-persist :starburst
            [{driver :engine, :as database}]
            (let [schema-name (ddl.i/schema-name database (public-settings/site-uuid))
