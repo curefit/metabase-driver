@@ -141,6 +141,8 @@
     (fn [^Connection conn]
       (let [schemas (if schema #{(describe-schema driver conn catalog schema)}
                       (all-schemas driver conn catalog))]
+        (println "======describe database====================")
+        (println schema)
         {:tables (reduce set/union schemas)}))))
 
 (defmethod driver/describe-table :starburst
@@ -153,6 +155,8 @@
       (with-open [stmt (.createStatement conn)]
         (let [sql (describe-table-sql driver catalog schema table-name)
               rs (sql-jdbc.execute/execute-statement! driver stmt sql)]
+          (println "--------describe sql------------")
+          (println sql)
           {:schema schema
            :name   table-name
            :fields (into
