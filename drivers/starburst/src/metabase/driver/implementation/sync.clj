@@ -97,52 +97,136 @@
   [driver ^Connection conn table-schema table-name]
   (try
     (let [sql (str "SHOW TABLES FROM \"" table-schema "\" LIKE '" table-name "'")]
+      (log/debugf "Checking select privilege for table: schema='%s', table='%s' with query: %s" 
+                  table-schema table-name sql)
       ;; if the query completes without throwing an Exception, we can SELECT from this table
       (with-open [stmt (.prepareStatement conn sql)
                   rs (.executeQuery stmt)]
-          (.next rs)))
+          (let [has-privilege (.next rs)]
+            (log/debugf "Select privilege check result for table: schema='%s', table='%s' = %s" 
+                        table-schema table-name has-privilege)
+            has-privilege)))
     (catch Throwable e
-      (log/fatal "ERROR WITH QUERY " e)
+      (log/warnf e "Failed to check select privilege for table: schema='%s', table='%s': %s" 
+                 table-schema table-name (.getMessage e))
       false)))
+
+(defn- describe-schema-attempt
+  "Single attempt to get tables for a schema."
+  [driver conn catalog schema attempt max-retries]
+  (let [sql (describe-schema-sql driver catalog schema)]
+    (try
+      (log/infof "Attempt %d/%d: Executing describe-schema query for catalog='%s', schema='%s'" 
+                 attempt max-retries catalog schema)
+      
+      ;; Execute the query and process results in one go to avoid ResultSet closure issues
+      (let [result (with-open [stmt (.createStatement conn)]
+                     (let [rs (sql-jdbc.execute/execute-statement! driver stmt sql)]
+                       (log/infof "Successfully executed describe-schema query for catalog='%s', schema='%s' on attempt %d" 
+                                  catalog schema attempt)
+                       ;; Process the ResultSet immediately before it gets closed
+                       ;; Skip privilege checking for now to avoid timeout issues
+                       (into 
+                        #{} 
+                        (map (fn [{table-name :table}]
+                               {:name        table-name
+                                :schema      schema})) 
+                        (jdbc/reducible-result-set rs {}))))]
+        (log/infof "Successfully processed %d tables for catalog='%s', schema='%s' on attempt %d" 
+                   (count result) catalog schema attempt)
+        result)
+      
+      (catch Throwable e
+        (log/warnf e "Attempt %d/%d failed for describe-schema catalog='%s', schema='%s': %s" 
+                   attempt max-retries catalog schema (.getMessage e))
+        
+        (if (< attempt max-retries)
+          (let [delay (long (* 10000 (Math/pow 2 (dec attempt))))] ; 10s, 20s, 40s
+            (log/infof "Retrying in %.1f seconds... (attempt %d/%d)" (/ delay 1000.0) (inc attempt) max-retries)
+            (Thread/sleep delay)
+            (describe-schema-attempt driver conn catalog schema (inc attempt) max-retries))
+          (do
+            (log/errorf e "All %d attempts failed for describe-schema catalog='%s', schema='%s'. Giving up." 
+                       max-retries catalog schema)
+            (throw e)))))))
+
+(defn- describe-schema-with-retry
+  "Gets a set of maps for all tables in the given `catalog` and `schema` with retry logic."
+  [driver conn catalog schema max-retries]
+  (log/infof "Starting describe-schema for catalog='%s', schema='%s' with %d retries" catalog schema max-retries)
+  (describe-schema-attempt driver conn catalog schema 1 max-retries))
 
 (defn- describe-schema
   "Gets a set of maps for all tables in the given `catalog` and `schema`."
   [driver conn catalog schema]
-  (with-open [stmt (.createStatement conn)]
-    (let [sql (describe-schema-sql driver catalog schema)
-          rs (sql-jdbc.execute/execute-statement! driver stmt sql)]
-      (into 
-       #{} 
-       (comp (filter (fn [{table-name :table}]
-                                (sql-jdbc.sync.interface/have-select-privilege? driver conn schema table-name)))
-                      (map (fn [{table-name :table}]
-                             {:name        table-name
-                              :schema      schema}))) 
-       (jdbc/reducible-result-set rs {})))))
+  (describe-schema-with-retry driver conn catalog schema 3))
+
+(defn- all-schemas-attempt
+  "Single attempt to get all schemas for a catalog."
+  [driver conn catalog attempt max-retries]
+  (let [sql (describe-catalog-sql driver catalog)]
+    (try
+      (log/infof "Attempt %d/%d: Executing all-schemas query for catalog='%s'" 
+                 attempt max-retries catalog)
+      
+      ;; Execute the query and process results in one go to avoid ResultSet closure issues
+      (let [result (with-open [stmt (.createStatement conn)]
+                     (let [rs (sql-jdbc.execute/execute-statement! driver stmt sql)]
+                       (log/infof "Successfully executed all-schemas query for catalog='%s' on attempt %d" 
+                                  catalog attempt)
+                       ;; Process the ResultSet immediately before it gets closed
+                       (into []
+                             (map (fn [{:keys [schema] :as full}]
+                                    (when-not (contains? excluded-schemas schema)
+                                      (describe-schema driver conn catalog schema))))
+                             (jdbc/reducible-result-set rs {}))))]
+        (log/infof "Successfully processed %d schemas for catalog='%s' on attempt %d" 
+                   (count result) catalog attempt)
+        result)
+      
+      (catch Throwable e
+        (log/warnf e "Attempt %d/%d failed for all-schemas catalog='%s': %s" 
+                   attempt max-retries catalog (.getMessage e))
+        
+        (if (< attempt max-retries)
+          (let [delay (long (* 10000 (Math/pow 2 (dec attempt))))] ; 10s, 20s, 40s
+            (log/infof "Retrying in %.1f seconds... (attempt %d/%d)" (/ delay 1000.0) (inc attempt) max-retries)
+            (Thread/sleep delay)
+            (all-schemas-attempt driver conn catalog (inc attempt) max-retries))
+          (do
+            (log/errorf e "All %d attempts failed for all-schemas catalog='%s'. Giving up." 
+                       max-retries catalog)
+            (throw e)))))))
+
+(defn- all-schemas-with-retry
+  "Gets a set of maps for all tables in all schemas in the given `catalog` with retry logic."
+  [driver conn catalog max-retries]
+  (log/infof "Starting all-schemas for catalog='%s' with %d retries" catalog max-retries)
+  (all-schemas-attempt driver conn catalog 1 max-retries))
 
 (defn- all-schemas
   "Gets a set of maps for all tables in all schemas in the given `catalog`."
   [driver conn catalog]
-  (with-open [stmt (.createStatement conn)]
-    (let [sql (describe-catalog-sql driver catalog)
-          rs (sql-jdbc.execute/execute-statement! driver stmt sql)]
-      (into []
-            (map (fn [{:keys [schema] :as full}]
-                   (when-not (contains? excluded-schemas schema)
-                     (describe-schema driver conn catalog schema))))
-            (jdbc/reducible-result-set rs {})))))
+  (all-schemas-with-retry driver conn catalog 3))
   
 (defmethod driver/describe-database :starburst
   [driver {{:keys [catalog schema] :as details} :details :as database}]
+  (log/infof "Starting describe-database for Starburst: catalog='%s', schema='%s'" catalog schema)
   (sql-jdbc.execute/do-with-connection-with-options
     driver
     database
     nil
     (fn [^Connection conn]
-      (let [schemas (if schema #{(describe-schema driver conn catalog schema)}
-                      (all-schemas driver conn catalog))]
-        (println "======describe database====================")
-        (println schema)
+      (log/infof "Connection established for describe-database: catalog='%s', schema='%s'" catalog schema)
+      (let [schemas (if schema 
+                      (do
+                        (log/infof "Syncing specific schema: '%s' for catalog: '%s'" schema catalog)
+                        #{(describe-schema driver conn catalog schema)})
+                      (do
+                        (log/infof "Syncing all schemas for catalog: '%s'" catalog)
+                        (all-schemas driver conn catalog)))]
+        (log/infof "Completed describe-database for Starburst: catalog='%s', schema='%s', found %d schemas" 
+                   catalog schema (count schemas))
         {:tables (reduce set/union schemas)}))))
 
 (defmethod driver/describe-table :starburst
