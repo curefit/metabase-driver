@@ -77,6 +77,12 @@
   [driver catalog schema table]
   (str "DESCRIBE " (sql.u/quote-name driver :table catalog schema table)))
 
+(defn show-create-table-sql
+      "The DESCRIBE  statement that will list information about the given `table`, in the given `catalog` and schema`."
+      {:added "0.39.0"}
+      [driver catalog schema table]
+      (str "SHOW CREATE TABLE " (sql.u/quote-name driver :table catalog schema table)))
+
 (def excluded-schemas
   "The set of schemas that should be excluded when querying all schemas."
   #{"information_schema"})
@@ -105,13 +111,13 @@
   (with-open [stmt (.createStatement conn)]
     (let [sql (describe-schema-sql driver catalog schema)
           rs (sql-jdbc.execute/execute-statement! driver stmt sql)]
-      (into 
-       #{} 
+      (into
+       #{}
        (comp (filter (fn [{table-name :table}]
                                 (sql-jdbc.sync.interface/have-select-privilege? driver conn schema table-name)))
                       (map (fn [{table-name :table}]
                              {:name        table-name
-                              :schema      schema}))) 
+                              :schema      schema})))
        (jdbc/reducible-result-set rs {})))))
 
 (defn- all-schemas
@@ -125,7 +131,14 @@
                    (when-not (contains? excluded-schemas schema)
                      (describe-schema driver conn catalog schema))))
             (jdbc/reducible-result-set rs {})))))
-  
+
+(defn extract-partitioned-by [result-set]
+      (let [map (first result-set)]
+           (when map
+                 (when (re-find #"partitioned_by\s+=\s+ARRAY\[(.+?)]" ((keyword "create table") map))
+                       (let [partitions (re-find #"partitioned_by\s+=\s+ARRAY\[(.+?)]" ((keyword "create table") map))]
+                            (clojure.string/split (second partitions) #","))))))
+
 (defmethod driver/describe-database :starburst
   [driver {{:keys [catalog schema] :as details} :details :as database}]
   (sql-jdbc.execute/do-with-connection-with-options

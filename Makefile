@@ -44,7 +44,7 @@ ifeq ($(wildcard $(makefile_dir)metabase/modules/drivers/starburst/src),)
 else
 	@echo "Driver found, skipping linking."
 endif
-	
+
 
 front_end:
 	@echo "Building Front End..."
@@ -55,7 +55,7 @@ driver: update_deps_files
 	@echo "Building Starburst driver..."
 	cd $(makefile_dir)metabase/; ./bin/build-driver.sh starburst
 
-server: 
+server:
 	@echo "Starting metabase..."
 	cd $(makefile_dir)metabase/; clojure -M:run
 
@@ -86,7 +86,7 @@ testOptimized: start_trino_if_missing link_to_driver update_deps_files
 	@echo "Testing Starburst driver (explicitPrepare=true)..."
 	cd $(makefile_dir)metabase/; DRIVERS=starburst MB_STARBURST_TEST_PORT=$(trino_port) clojure -J-DexplicitPrepare=false -X:dev:drivers:drivers-dev:test
 
-build: clone_metabase_if_missing update_deps_files link_to_driver front_end driver
+build: update_deps_files link_to_driver driver
 
 docker-image:
 	cd $(makefile_dir)metabase/; export MB_EDITION=ee && ./bin/build.sh && mv target/uberjar/metabase.jar bin/docker/ && docker build -t metabase-dev --build-arg MB_EDITION=ee ./bin/docker/
