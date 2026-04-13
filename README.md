@@ -19,6 +19,7 @@ build our `.jar` file into the correct dir, run tests, and start the local serve
 * [Clojure](https://clojure.org/guides/install_clojure)
 * [jq](https://stedolan.github.io/jq/download/)
 * [Metabase Prerequisites](https://www.metabase.com/docs/latest/developers-guide/build#install-the-prerequisites)
+* JDK 8 to 21. **JDK 22 will not work**
 
 ##### Quick Start
 Run `make build test` to build and run tests locally. If everything passes, you're good to go!
@@ -39,13 +40,14 @@ This command starts a local Metabase server on port `3000`. If you want to build
 Once you have built all required resources with the `make build` command, run `make test`. This command builds your local driver changes and then starts Starburst driver tests.
 
 #### Staring a Trino Server in Docker 
-Running `make test` will start a Trino server for you on port 8082 when needed, but if you want to start one, you can run `make start_trino_if_missing`.
+Running `make test` will start a Trino server for you on port 8082 when needed, but if you want to start one, you can run `make start_trino_if_missing`. Run `make testOptimized` to test Metabase with the "Optimized prepared statements" flag on.
 
 *Note:* Running `make test` will populate the Trino catalogs with mock data that is used for testing. You can then connect Metabase to this Trino server to view that data. This is useful for manual testing.
 
 #### Executing Specific Tests
 You can cd into the metabase repo and run commands like:
 `DRIVERS=starburst clojure -X:dev:drivers:drivers-dev:test :only metabase.query-processor-test.timezones-test/filter-test`
+`DRIVERS=starburst clojure -J-DexplicitPrepare=false -X:dev:drivers:drivers-dev:test :only metabase.query-processor-test.timezones-test/filter-test`
 
 or even
 
@@ -62,6 +64,10 @@ Head to actions and run the `Release` workflow entering the same the same semant
 
 ### Update Metabase Version
 If needed, `make checkout_latest_metabase_tag` will update Metabase to its latest tagged release. 
+
+*CAUTION*: the Metabase test file `./metabase/.clj-kondo/test/hooks/clojure/test_test.clj` is overridden by a modified version on the root directory (see the `Makefile`). This is because the test `check-driver-keywords-test` is not expected to work with the Starburst driver.
+
+Whenever upgrading the version of Metabase, `./test_test.clj` should be replaced with `./metabase/.clj-kondo/test/hooks/clojure/test_test.clj` with the `check-driver-keywords-test` test removed.
 
 ## References
 * [Encrypting Metabase Database Details](https://www.metabase.com/docs/latest/operations-guide/encrypting-database-details-at-rest.html)

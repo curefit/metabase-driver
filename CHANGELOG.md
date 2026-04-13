@@ -1,5 +1,38 @@
 ## [Unreleased]
 
+## [6.1.0] - 2025-02-07
+
+-   Fix an issue where long queries get an error before completion
+-   Add cancel support for statements
+
+## [6.0.0] - 2025-01-10
+
+-   Bump Metabase version to v1.52.2
+-   Re-enable the :foreign-keys feature flag so that users can set external relationships in Metabase
+
+## [4.1.0] - 2023-11-17
+
+-   Add a new "Optimized prepared statement" option when defining a database
+-   Add further detail in the query comments such as account ID, dashboard ID or card ID when available
+
+## [4.0.0] - 2023-09-27
+
+-   Dump Metabase version to v1.47.2
+-   Fix timestamp filter issue with version 1.47.x
+-   Add an impersonation option when defining a Starburst database
+
+## [3.0.1] - 2023-05-25
+
+-   Bump Metabase version to v1.46.4
+
+## [3.0.0] - 2023-05-18
+
+-   Bump Metabase version to v1.46.3
+-   Migrate to Honey SQL 2
+-   Refactor unit test catalogs
+-   Enable now support
+-   Set metabase version to patch branch 
+
 ## [2.0.0] - 2023-03-06
 
 -   Bump Metabase version to v1.45.0
@@ -49,7 +82,19 @@
 -   Adds Starburst specific tests
 -   Adds github CI actions for testing and release
 
-[Unreleased]: https://github.com/starburstdata/metabase-driver/compare/2.0.0...HEAD
+[Unreleased]: https://github.com/starburstdata/metabase-driver/compare/6.1.0...HEAD
+
+[6.1.0]: https://github.com/starburstdata/metabase-driver/compare/6.0.0...6.1.0
+
+[6.0.0]: https://github.com/starburstdata/metabase-driver/compare/5.0.0...6.0.0
+
+[5.0.0]: https://github.com/starburstdata/metabase-driver/compare/4.1.0...5.0.0
+
+[4.1.0]: https://github.com/starburstdata/metabase-driver/compare/4.0.0...4.1.0
+
+[4.0.0]: https://github.com/starburstdata/metabase-driver/compare/3.0.0...4.0.0
+
+[3.0.0]: https://github.com/starburstdata/metabase-driver/compare/2.0.0...3.0.0
 
 [2.0.0]: https://github.com/starburstdata/metabase-driver/compare/1.0.7...2.0.0
 

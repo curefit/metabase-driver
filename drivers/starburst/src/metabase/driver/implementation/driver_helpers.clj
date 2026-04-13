@@ -13,7 +13,8 @@
 ;;
 (ns metabase.driver.implementation.driver-helpers
   "Driver api implementation for Starburst driver."
-  (:require [metabase.driver :as driver]))
+  (:require [metabase.driver :as driver]
+            [metabase.config :as config]))
 
 ;;; Starburst API helpers
 
@@ -39,7 +40,10 @@
                               :native-parameters               true
                               :expression-aggregations         true
                               :binning                         true
-                              :foreign-keys                    true
+                              ::concat-non-string-args          false
                               :datetime-diff                   true
-                              :convert-timezone                true}]
-  (defmethod driver/supports? [:starburst feature] [_ _] supported?))
+                              :convert-timezone                true
+                              :connection/multiple-databases   true
+                              :metadata/key-constraints        false
+                              :now                             true}]
+  (defmethod driver/database-supports? [:starburst feature] [_ _ _] supported?))

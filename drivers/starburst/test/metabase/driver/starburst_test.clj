@@ -15,7 +15,6 @@
   (:require [clojure.java.jdbc :as jdbc]
             [clojure.string :as str]
             [clojure.test :refer :all]
-            [honeysql.core :as hsql]
             [java-time :as t]
             [metabase.api.database :as api.database]
             [metabase.db.metadata-queries :as metadata-queries]
@@ -24,32 +23,43 @@
             [metabase.driver.sql-jdbc.connection :as sql-jdbc.conn]
             [metabase.driver.sql.query-processor :as sql.qp]
             [metabase.models.database :refer [Database]]
+            [metabase.api.common :as api]
             [metabase.models.field :refer [Field]]
             [metabase.models.table :as table :refer [Table]]
             [metabase.query-processor :as qp]
+            [metabase.query-processor.compile :as qp.compile]
+            [metabase.query-processor-test.timezones-test :as timezones-test]
             [metabase.sync :as sync]
             [metabase.test :as mt]
             [metabase.test.fixtures :as fixtures]
-            [toucan.db :as db]))
+            [metabase.test.data.interface :as tx]
+            [metabase.test.data.sql-jdbc :as sql-jdbc.tx]
+            [toucan2.tools.with-temp :as t2.with-temp]
+            [toucan2.core :as t2]))
 
 (use-fixtures :once (fixtures/initialize :db))
+(sql-jdbc.tx/add-test-extensions! :starburst)
+
+(defmethod tx/before-run :starburst
+  [_]
+  (alter-var-root #'timezones-test/broken-drivers conj :starburst))
 
 (deftest describe-database-test
   (mt/test-driver :starburst
-                  (is (= {:tables #{{:name "categories" :schema "default"}
-                                    {:name "venues" :schema "default"}
-                                    {:name "checkins" :schema "default"}
-                                    {:name "users" :schema "default"}}}
+                  (is (= {:tables #{{:name "test_data_categories" :schema "default"}
+                                    {:name "test_data_venues" :schema "default"}
+                                    {:name "test_data_checkins" :schema "default"}
+                                    {:name "test_data_users" :schema "default"}}}
                          (-> (driver/describe-database :starburst (mt/db))
-                             (update :tables (comp set (partial filter (comp #{"categories"
-                                                                               "venues"
-                                                                               "checkins"
-                                                                               "users"}
+                             (update :tables (comp set (partial filter (comp #{"test_data_categories"
+                                                                               "test_data_venues"
+                                                                               "test_data_checkins"
+                                                                               "test_data_users"}
                                                                              :name)))))))))
 
 (deftest describe-table-test
   (mt/test-driver :starburst
-                  (is (= {:name   "venues"
+                  (is (= {:name   "test_data_venues"
                           :schema "default"
                           :fields #{{:name          "name",
                        ;; for HTTP based Starburst driver, this is coming back as varchar(255)
@@ -77,7 +87,7 @@
                                      :database-type "integer"
                                      :base-type     :type/Integer
                                      :database-position 0}}}
-                         (driver/describe-table :starburst (mt/db) (db/select-one 'Table :id (mt/id :venues)))))))
+                         (driver/describe-table :starburst (mt/db) (t2/select-one 'Table :id (mt/id :venues)))))))
 
 (deftest table-rows-sample-test
   (mt/test-driver :starburst
@@ -86,9 +96,9 @@
                           [3 "The Apple Pan"]
                           [4 "Wurstküche"]
                           [5 "Brite Spot Family Restaurant"]]
-                         (->> (metadata-queries/table-rows-sample (Table (mt/id :venues))
-                                                                  [(Field (mt/id :venues :id))
-                                                                   (Field (mt/id :venues :name))]
+                         (->> (metadata-queries/table-rows-sample (t2/select-one Table :id (mt/id :venues))
+                                                                  [(t2/select-one Field :id (mt/id :venues :id))
+                                                                   (t2/select-one Field :id (mt/id :venues :name))]
                                                                   (constantly conj))
                               (sort-by first)
                               (take 5))))))
@@ -98,7 +108,7 @@
     (is (= {:select ["name" "id"]
             :from   [{:select   [[:default.categories.name "name"]
                                  [:default.categories.id "id"]
-                                 [(hsql/raw "row_number() OVER (ORDER BY \"default\".\"categories\".\"id\" ASC)")
+                                 [[:raw "row_number() OVER (ORDER BY default.categories.id ASC)"]
                                   :__rownum__]]
                       :from     [:default.categories]
                       :order-by [[:default.categories.id :asc]]}]
@@ -121,13 +131,10 @@
   (mt/test-driver :starburst
                   (testing "Make sure date params work correctly when report timezones are set (#10487)"
                     (mt/with-temporary-setting-values [report-timezone "Asia/Hong_Kong"]
-        ;; the `read-column-thunk` for `Types/TIMESTAMP` always returns an `OffsetDateTime`, not a `LocalDateTime`, as
-        ;; the original Starburst version of this test expected; therefore, convert the `ZonedDateTime` corresponding to
-        ;; midnight on this date (at the report TZ) to `OffsetDateTime` for comparison's sake
-                      (is (= [[(-> (t/zoned-date-time 2014 8 2 0 0 0 0 (t/zone-id "Asia/Hong_Kong"))
-                                   t/offset-date-time
-                                   (t/with-offset-same-instant (t/zone-offset 0)))
-                               (t/local-date 2014 8 2)]]
+        ;; the `read-column-thunk` for `Types/TIMESTAMP` used to return an `OffsetDateTime`, but since Metabase 1.50 it
+        ;; returns a LocalDate
+                      (is (= [[(t/local-date "2014-08-02")
+                               (t/local-date "2014-08-02")]]
                              (mt/rows
                               (qp/process-query
                                {:database     (mt/id)
@@ -145,10 +152,10 @@
                                              {:aggregation [[:count]]
                                               :filter      [:= $name "wow"]})]
                     (testing "The native query returned in query results should use user-friendly splicing"
-                      (is (= (str "SELECT count(*) AS \"count\" "
-                                  "FROM \"default\".\"venues\" "
-                                  "WHERE \"default\".\"venues\".\"name\" = 'wow'")
-                             (:query (qp/compile-and-splice-parameters query))
+                      (is (= (str "SELECT COUNT(*) AS \"count\" "
+                                  "FROM \"default\".\"test_data_venues\" "
+                                  "WHERE \"default\".\"test_data_venues\".\"name\" = 'wow'")
+                             (:query (qp.compile/compile-with-inline-parameters query))
                              (-> (qp/process-query query) :data :native_form :query)))))))
 
 (deftest connection-tests
@@ -188,12 +195,12 @@
                                      (format "DROP SCHEMA IF EXISTS %s" s)
                                      (format "CREATE SCHEMA %s" s)
                                      (format "CREATE TABLE %s.%s (pk INTEGER, val1 VARCHAR(512))" s t)])
-                      (mt/with-temp Database [db {:engine :starburst, :name "Temp Trino JDBC Schema DB", :details with-schema}]
+                      (t2.with-temp/with-temp [Database db {:engine :starburst, :name "Temp Trino JDBC Schema DB", :details with-schema}]
                         (mt/with-db db
             ;; same as test_data, but with schema, so should NOT pick up venues, users, etc.
                           (sync/sync-database! db)
                           (is (= [{:name t, :schema s, :db_id (mt/id)}]
-                                 (map #(select-keys % [:name :schema :db_id]) (db/select Table :db_id (mt/id)))))))
+                                 (map #(select-keys % [:name :schema :db_id]) (t2/select Table :db_id (mt/id)))))))
                       (execute-ddl! [(format "DROP TABLE %s.%s" s t)
                                      (format "DROP SCHEMA %s" s)])))))
 
@@ -244,7 +251,7 @@
 
 (deftest datetime-diff-base-test
   (mt/test-drivers (mt/normal-drivers-with-feature :datetime-diff)
-    (mt/dataset sample-dataset
+    (mt/dataset test-data
       (letfn [(query [x y unit]
                 (->> (mt/run-mbql-query orders
                        {:limit 1
@@ -271,3 +278,132 @@
           (testing (name unit)
             (testing description
               (is (= [expected (- expected)] (query x y unit))))))))))
+
+(deftest impersonation-properties-test
+  (testing "Impersonation related properties are set correctly"
+    (let [details {:host                         "starburst-server"
+                   :port                         7778
+                   :catalog                      "my-catalog"
+                   :ssl                          true
+                   :impersonation                true}
+          jdbc-spec (sql-jdbc.conn/connection-details->spec :starburst details)]
+      (is (= (str "impersonate:true")
+             (:clientInfo jdbc-spec))))))
+
+(defn prepared-statements-helper
+  [prepared-optimized]
+        (is (= [["2023-11-06T00:00:00Z" 42 "It was created"]]
+          (mt/rows
+          (let [details {
+            :host                         "localhost"
+            :port                         8082
+            :catalog                      "catalog"
+            :user                         "admin"
+            :ssl                          false
+            :prepared-optimized           prepared-optimized}]
+              (t2.with-temp/with-temp [Database db {:engine :starburst, :name "Temp Trino JDBC Schema DB", :details details}]
+              (mt/with-db db
+              (qp/process-query
+                {:database     (mt/id)
+                :type         :native
+                :native       {
+                  :query         "SELECT {{created_at}}, {{nb_created}}, {{detail}}"
+                  :template-tags {:created_at {:name         "created_at"
+                                               :display_name "created_at"
+                                               :type         :date
+                                               :required     true}
+                                  :nb_created {:name         "nb_created"
+                                               :display_name "nb_created"
+                                               :type         :number
+                                               :required     true}
+                                  :detail {:name         "detail"
+                                               :display_name "detail"
+                                               :type         :text
+                                               :required     true}}}
+                :parameters    [{:type   :date
+                                 :name   "created_at"
+                                 :target [:variable [:template-tag "created_at"]]
+                                 :value  "2023-11-06"}
+                                {:type   :number
+                                 :name   "nb_created"
+                                 :target [:variable [:template-tag "nb_created"]]
+                                 :value  "42"}
+                                 {:type   :text
+                                 :name   "detail"
+                                 :target [:variable [:template-tag "detail"]]
+                                 :value  "It was created"}]}))))))))
+
+(deftest prepared-statements
+  (mt/test-driver :starburst
+    (testing "Make sure prepared statements work"
+        ;; If impersonation is set, then the Trino user should be the current Metabase user, i.e. metabase_user@user.com
+        ;; The role is ignored as Metabase users may not have the role defined in the database connection
+        (prepared-statements-helper true)
+        (prepared-statements-helper false))))
+
+(deftest impersonation-query
+  (mt/test-driver :starburst
+    (testing "Make sure the right credentials are used depending on the impersonation checkbox"
+      (binding [api/*current-user* (atom {:email "metabase_user@user.com"})]
+        ;; By default the Trino user should the user defined in the database connection, i.e. "metabase"
+        (is (= [["metabase"]]
+          (mt/rows
+            (qp/process-query
+              {:database     (mt/id)
+              :type         :native
+              :native       {:query         "SELECT current_user"}}))))
+
+        ;; If impersonation is set, then the Trino user should be the current Metabase user, i.e. metabase_user@user.com
+        ;; The role is ignored as Metabase users may not have the role defined in the database connection
+        (is (= [["metabase_user@user.com"]]
+          (mt/rows
+          (let [details {
+            :host                         "localhost"
+            :port                         8082
+            :catalog                      "catalog"
+            :user                         "admin"
+            :roles                        "sysadmin"
+            :ssl                          false
+            :impersonation                true}]
+              (t2.with-temp/with-temp [Database db {:engine :starburst, :name "Temp Trino JDBC Schema DB", :details details}]
+              (mt/with-db db
+              (qp/process-query
+                {:database     (mt/id)
+                :type         :native
+                :native       {:query         "SELECT current_user"}})))))))
+
+        ;; Because database user = metabase user, the role is passed in the Trino query
+        ;; This is expected to fail as the Trino container doesn't support roles
+        (is (thrown? Exception
+          (let [details {
+              :host                         "localhost"
+              :port                         8082
+              :catalog                      "catalog"
+              :user                         "metabase_user@user.com"
+              :roles                        "sysadmin"
+              :ssl                          false
+              :impersonation                true}]
+                (t2.with-temp/with-temp [Database db {:engine :starburst, :name "Temp Trino JDBC Schema DB", :details details}]
+                (mt/with-db db
+                (qp/process-query
+                  {:database     (mt/id)
+                  :type         :native
+                  :native       {:query         "SELECT current_user"}}))))))
+
+        ;; With impersonation disabled the role is passed in the Trino query
+        ;; This is expected to fail as the Trino container doesn't support roles
+        (is (thrown? Exception
+          (let [details {
+              :host                         "localhost"
+              :port                         8082
+              :catalog                      "catalog"
+              :user                         "admin"
+              :roles                        "sysadmin"
+              :ssl                          false
+              :impersonation                false}]
+                (t2.with-temp/with-temp [Database db {:engine :starburst, :name "Temp Trino JDBC Schema DB", :details details}]
+                (mt/with-db db
+                (qp/process-query
+                  {:database     (mt/id)
+                  :type         :native
+                  :native       {:query         "SELECT current_user"}}))))))))))
