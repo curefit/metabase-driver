@@ -1,13 +1,12 @@
 (ns metabase.driver.implementation.ddl
     (:require
       [clojure.java.jdbc :as jdbc]
-      [honeysql.core :as sql]
       [java-time :as t]
       [metabase.driver.ddl.interface :as ddl.i]
       [metabase.driver.sql-jdbc.connection :as sql-jdbc.conn]
       [metabase.driver.sql.ddl :as sql.ddl]
       [metabase.public-settings :as public-settings]
-      [metabase.query-processor :as qp]
+      [metabase.query-processor.compile :as qp]
       [metabase.util.i18n :refer [trs]])
     (:import com.mchange.v2.c3p0.C3P0ProxyConnection
       io.trino.jdbc.TrinoConnection
