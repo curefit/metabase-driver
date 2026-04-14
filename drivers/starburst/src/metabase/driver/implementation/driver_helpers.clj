@@ -22,6 +22,12 @@
   [_]
   :monday)
 
+(defmethod driver/database-supports? [:starburst :persist-models] [_driver _feat _db] true)
+
+(defmethod driver/database-supports? [:starburst :persist-models-enabled]
+           [_driver _feat db]
+           (-> db :options :persist-models-enabled))
+
 (defmethod driver/describe-table-fks :starburst [_ _ _]
   ;; Trino does not support finding foreign key metadata tables, but some connectors support foreign keys.
   ;; We have this return nil to avoid running unnecessary queries during fks sync.

@@ -99,6 +99,12 @@
       (log/fatal "ERROR WITH QUERY " e)
       false)))
 
+(defn show-create-table-sql
+  "The DESCRIBE  statement that will list information about the given `table`, in the given `catalog` and schema`."
+  {:added "0.39.0"}
+  [driver catalog schema table]
+  (str "SHOW CREATE TABLE " (sql.u/quote-name driver :table catalog schema table)))
+
 (defn- describe-schema
   "Gets a set of maps for all tables in the given `catalog` and `schema`."
   [driver conn catalog schema]
