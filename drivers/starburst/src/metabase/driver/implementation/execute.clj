@@ -164,8 +164,10 @@
   [conn]
   (if
     (clojure.string/includes? (.getProperty (.getClientInfo conn) "ClientInfo" "") "impersonate:true")
-    (let [email (get (deref api/*current-user*) :email)]
-      (.setSessionUser (.unwrap conn TrinoConnection) email))
+    (let [session-user (if (= api/*current-auth-type* :pat)
+                         "pat_user"
+                         (get (deref api/*current-user*) :email))]
+      (.setSessionUser (.unwrap conn TrinoConnection) session-user))
     nil))
 
 (defn remove-impersonation
