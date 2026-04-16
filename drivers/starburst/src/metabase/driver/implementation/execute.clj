@@ -162,28 +162,18 @@
 
 (defn impersonate-user
   [conn]
-  (let [database (lib.metadata/database (qp.store/metadata-provider))
-        impersonation-enabled? (clojure.string/includes? (.getProperty (.getClientInfo conn) "ClientInfo" "") "impersonate:true")
-        force-pat-user? (and (= api/*current-auth-type* :pat)
-                             (contains? #{39} (:id database)))]
-    (if
-      (or impersonation-enabled? force-pat-user?)
-      (let [session-user (if (= api/*current-auth-type* :pat)
-                           "pat_user"
-                           (get (deref api/*current-user*) :email))]
-      (.setSessionUser (.unwrap conn TrinoConnection) session-user))
-      nil)))
+  (if
+    (clojure.string/includes? (.getProperty (.getClientInfo conn) "ClientInfo" "") "impersonate:true")
+    (let [email (get (deref api/*current-user*) :email)]
+      (.setSessionUser (.unwrap conn TrinoConnection) email))
+    nil))
 
 (defn remove-impersonation
   [conn]
-  (let [database (lib.metadata/database (qp.store/metadata-provider))
-        impersonation-enabled? (clojure.string/includes? (.getProperty (.getClientInfo conn) "ClientInfo" "") "impersonate:true")
-        force-pat-user? (and (= api/*current-auth-type* :pat)
-                             (contains? #{39} (:id database)))]
-    (if
-      (or impersonation-enabled? force-pat-user?)
-      (.clearSessionUser (.unwrap conn TrinoConnection))
-      nil)))
+  (if
+    (clojure.string/includes? (.getProperty (.getClientInfo conn) "ClientInfo" "") "impersonate:true")
+    (.clearSessionUser (.unwrap conn TrinoConnection))
+    nil))
 
 ; Metabase tests require a specific error when an invalid number of parameters are passed
 (defn handle-execution-error
